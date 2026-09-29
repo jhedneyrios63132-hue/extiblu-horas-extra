@@ -13,14 +13,14 @@
  * pantalla de administrador).
  */
 const { leerMaestro } = require('../../lib/googleSheets');
+const { AREAS_PERMITIDAS } = require('../../lib/reglasNegocio');
 
 export default async function handler(req, res) {
   try {
     const personal = await leerMaestro();
 
-    const areasPermitidas = ['PRODUCCION', 'LOGISTICA'];
     const relevantes = personal.filter((p) =>
-      areasPermitidas.includes((p.AREA || '').toUpperCase().trim())
+      AREAS_PERMITIDAS.includes((p.AREA || '').toUpperCase().trim())
     );
 
     res.status(200).json({
