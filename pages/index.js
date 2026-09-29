@@ -1,6 +1,5 @@
 /**
- * Página de inicio. La pantalla de Administrador todavía está pendiente de
- * construir — por ahora este es el punto de entrada a Registro.
+ * Página de inicio: punto de entrada a las pantallas de la herramienta.
  */
 export default function Inicio() {
   return (
@@ -11,6 +10,9 @@ export default function Inicio() {
       </p>
       <p>
         <a href="/administrador" style={{ fontSize: 18 }}>📋 Ir a Panel de Administrador</a>
+      </p>
+      <p>
+        <a href="/checklist-comidas" style={{ fontSize: 18 }}>🍽️ Ir a Checklist de entrega de comidas</a>
       </p>
       <p style={{ color: '#666', fontSize: 14 }}>
         (Prueba técnica de la conexión al maestro: <a href="/api/prueba-maestro">/api/prueba-maestro</a>)
