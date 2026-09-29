@@ -64,8 +64,11 @@ export default async function handler(req, res) {
 
     const timestamp = new Date().toISOString();
 
+    // Orden de columnas en la hoja: Cedula, Nombre, Fecha, Asiste, Motivo,
+    // Bodega, Area, Hora_salida_real, Timestamp.
     await agregarRegistro([
       normalizarCedula(cedula),
+      persona.nombre,
       fecha,
       asisteNormalizado,
       asisteNormalizado === 'No' ? (motivo || '').trim() : '',
