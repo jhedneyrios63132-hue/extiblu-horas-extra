@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
     const areasPermitidas = ['PRODUCCION', 'LOGISTICA'];
     const relevantes = personal.filter((p) =>
-      areasPermitidas.includes((p.Area || '').toUpperCase().trim())
+      areasPermitidas.includes((p.AREA || '').toUpperCase().trim())
     );
 
     res.status(200).json({
