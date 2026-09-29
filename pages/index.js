@@ -9,6 +9,9 @@ export default function Inicio() {
       <p>
         <a href="/registro" style={{ fontSize: 18 }}>➡️ Ir a Registro de horas extra</a>
       </p>
+      <p>
+        <a href="/administrador" style={{ fontSize: 18 }}>📋 Ir a Panel de Administrador</a>
+      </p>
       <p style={{ color: '#666', fontSize: 14 }}>
         (Prueba técnica de la conexión al maestro: <a href="/api/prueba-maestro">/api/prueba-maestro</a>)
       </p>
