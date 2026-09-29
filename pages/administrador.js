@@ -43,41 +43,71 @@ export default function Administrador() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [comidasOtrasAreas, setComidasOtrasAreas] = useState(0);
+  const [guardandoAsistencia, setGuardandoAsistencia] = useState(new Set());
+  const [errorAsistencia, setErrorAsistencia] = useState('');
 
-  useEffect(() => {
-    let cancelado = false;
+  async function cargarDatos(cancelRef) {
     setCargando(true);
     setError('');
+    try {
+      const resp = await fetch(`/api/administrador?fecha=${encodeURIComponent(fecha)}&area=${encodeURIComponent(area)}`);
+      const json = await resp.json();
+      if (cancelRef && cancelRef.cancelado) return;
+      if (!json.ok) {
+        setError(json.error || 'No se pudo cargar la información.');
+        setDatos(null);
+      } else {
+        setDatos(json);
+      }
+    } catch (e) {
+      if (!cancelRef || !cancelRef.cancelado) setError('No se pudo consultar el servidor. Intenta de nuevo.');
+    } finally {
+      if (!cancelRef || !cancelRef.cancelado) setCargando(false);
+    }
+  }
 
-    fetch(`/api/administrador?fecha=${encodeURIComponent(fecha)}&area=${encodeURIComponent(area)}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (cancelado) return;
-        if (!json.ok) {
-          setError(json.error || 'No se pudo cargar la información.');
-          setDatos(null);
-        } else {
-          setDatos(json);
-        }
-      })
-      .catch(() => {
-        if (!cancelado) setError('No se pudo consultar el servidor. Intenta de nuevo.');
-      })
-      .finally(() => {
-        if (!cancelado) setCargando(false);
-      });
-
+  useEffect(() => {
+    const cancelRef = { cancelado: false };
+    cargarDatos(cancelRef);
     return () => {
-      cancelado = true;
+      cancelRef.cancelado = true;
     };
   }, [fecha, area]);
+
+  async function confirmarAsistencia(cedula, asistioReal) {
+    setErrorAsistencia('');
+    setGuardandoAsistencia((anterior) => new Set(anterior).add(cedula));
+    try {
+      const resp = await fetch('/api/confirmar-asistencia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cedula, fecha, asistioReal }),
+      });
+      const json = await resp.json();
+      if (!json.ok) {
+        setErrorAsistencia(json.error || 'No se pudo guardar la confirmación.');
+      } else {
+        await cargarDatos();
+      }
+    } catch (e) {
+      setErrorAsistencia('No se pudo guardar la confirmación. Intenta de nuevo.');
+    } finally {
+      setGuardandoAsistencia((anterior) => {
+        const nuevo = new Set(anterior);
+        nuevo.delete(cedula);
+        return nuevo;
+      });
+    }
+  }
 
   const totalAlimentacionesConExtra = (datos ? datos.totalAlimentaciones : 0) + (Number(comidasOtrasAreas) || 0);
 
   return (
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
-      <p style={estilos.subtitulo}>Panel de Administrador</p>
+      <p style={estilos.subtitulo}>
+        Panel de Administrador · <a href="/trazabilidad">Ver trazabilidad por persona</a>
+      </p>
 
       <div style={estilos.filaSelectores}>
         <div>
@@ -192,6 +222,7 @@ export default function Administrador() {
           )}
 
           <h2 style={estilos.h2}>Programados ({datos.programados.length})</h2>
+          {errorAsistencia && <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {errorAsistencia}</div>}
           <div style={{ overflowX: 'auto' }}>
             <table style={estilos.tabla}>
               <thead>
@@ -203,6 +234,7 @@ export default function Administrador() {
                   <th style={estilos.th}>Hora efectiva</th>
                   <th style={estilos.th}>Horas extra</th>
                   <th style={estilos.th}>Alimentación</th>
+                  <th style={estilos.th}>¿Asistió realmente?</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,6 +254,31 @@ export default function Administrador() {
                           ? '✅ Sí'
                           : 'No'
                         : '—'}
+                    </td>
+                    <td style={estilos.td}>
+                      {!p.calculo ? (
+                        '—'
+                      ) : (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            type="button"
+                            disabled={guardandoAsistencia.has(p.cedula)}
+                            onClick={() => confirmarAsistencia(p.cedula, 'Si')}
+                            style={p.asistioReal === 'Si' ? estilos.botonAsistenciaActivoSi : estilos.botonAsistencia}
+                          >
+                            Sí
+                          </button>
+                          <button
+                            type="button"
+                            disabled={guardandoAsistencia.has(p.cedula)}
+                            onClick={() => confirmarAsistencia(p.cedula, 'No')}
+                            style={p.asistioReal === 'No' ? estilos.botonAsistenciaActivoNo : estilos.botonAsistencia}
+                          >
+                            No
+                          </button>
+                          {!p.asistioReal && <span style={estilos.textoSecundario}>Sin confirmar</span>}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -261,4 +318,32 @@ const estilos = {
   tabla: { width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 14 },
   th: { textAlign: 'left', borderBottom: '2px solid #ddd', padding: '8px 6px', background: '#f6f8fa' },
   td: { borderBottom: '1px solid #eee', padding: '8px 6px' },
+  botonAsistencia: {
+    padding: '4px 10px',
+    fontSize: 13,
+    borderRadius: 6,
+    border: '1px solid #ccc',
+    background: '#fff',
+    cursor: 'pointer',
+  },
+  botonAsistenciaActivoSi: {
+    padding: '4px 10px',
+    fontSize: 13,
+    borderRadius: 6,
+    border: '1px solid #1e7e34',
+    background: '#e6f4ea',
+    color: '#1e7e34',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  botonAsistenciaActivoNo: {
+    padding: '4px 10px',
+    fontSize: 13,
+    borderRadius: 6,
+    border: '1px solid #b3261e',
+    background: '#fdecea',
+    color: '#b3261e',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 };

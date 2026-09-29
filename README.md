@@ -35,12 +35,16 @@ personal de Google ni a nada más.
 1. Abre tu **listado maestro** de personal en Google Sheets → botón **Compartir** → pega el `client_email` del paso anterior → dale permiso de **Editor** → Enviar (no hace falta que le llegue notificación por correo, puedes desmarcar esa opción).
 2. Crea una **hoja nueva** de Google Sheets para el registro diario (ya no se usa la de AppSheet). En la primera fila, pon exactamente estas columnas, en este orden:
 
-   | Cedula | Fecha | Asiste | Motivo | Bodega | Area | Hora_salida_real | Timestamp |
-   |---|---|---|---|---|---|---|---|
+   | Cedula | Nombre | Fecha | Asiste | Motivo | Bodega | Area | Hora_salida_real | Timestamp | Asistio_Real |
+   |---|---|---|---|---|---|---|---|---|---|
 
    - `Fecha`: formato `AAAA-MM-DD` (ej. `2026-09-16`).
    - `Asiste`: `Si` o `No`.
    - `Hora_salida_real`: formato `HH:MM` en 24 horas (ej. `16:30`), solo se llena cuando aplica.
+   - `Asistio_Real` (columna J): la llena la herramienta misma cuando un administrador
+     confirma, desde el Panel de Administrador, si la persona realmente asistió a
+     sus horas extra (`Si` o `No`). Queda vacía hasta que alguien la confirme — no
+     hace falta llenarla a mano, solo crear la columna con ese encabezado exacto.
    - Las demás columnas, texto libre como ya las conoces.
 3. Comparte también esta hoja nueva con el mismo `client_email`, igualmente con permiso de **Editor**.
 

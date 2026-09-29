@@ -14,6 +14,9 @@ export default function Inicio() {
       <p>
         <a href="/checklist-comidas" style={{ fontSize: 18 }}>🍽️ Ir a Checklist de entrega de comidas</a>
       </p>
+      <p>
+        <a href="/trazabilidad" style={{ fontSize: 18 }}>📈 Ir a Trazabilidad por persona</a>
+      </p>
       <p style={{ color: '#666', fontSize: 14 }}>
         (Prueba técnica de la conexión al maestro: <a href="/api/prueba-maestro">/api/prueba-maestro</a>)
       </p>
