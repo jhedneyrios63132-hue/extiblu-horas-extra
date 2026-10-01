@@ -1,10 +1,15 @@
 /**
- * Checklist de entrega de comidas — para el día de entrega, marcar quién
- * reclama su alimentación y comparar contra quién tenía derecho según lo
- * programado. No se guarda en ningún lado (confirmado con la usuaria):
- * es solo para el momento de la entrega.
+ * Checklist de entrega de comidas — para el día de entrega, se escribe la
+ * cédula de cada persona a la que se le entrega la comida y la herramienta
+ * la busca sola en la lista de esa Fecha+Bodega y la tacha. Si la cédula no
+ * está en esa lista, queda registrada aparte en "No programados" (puede ser
+ * de otra área, otro día, u otra Bodega). También se puede marcar tocando
+ * el nombre directamente en la lista, como respaldo.
+ *
+ * No se guarda en ningún lado (confirmado con la usuaria): es solo para el
+ * momento de la entrega.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const BODEGAS = ['Bodega 222', 'Bodega 224', 'Bodega 230'];
 
@@ -23,21 +28,22 @@ export default function ChecklistComidas() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
-  // cédulas marcadas como "reclamó" (tanto de la lista esperada como de "revisar manual")
+  // cédulas marcadas como "entregado" (tanto de la lista esperada como de "revisar manual")
   const [reclamados, setReclamados] = useState(new Set());
 
-  // personas que reclamaron sin estar en la lista de esperados
-  const [extras, setExtras] = useState([]);
-  const [cedulaExtra, setCedulaExtra] = useState('');
-  const [estadoExtra, setEstadoExtra] = useState('vacio'); // vacio | buscando | encontrada | error
-  const [personaExtra, setPersonaExtra] = useState(null);
-  const [mensajeExtra, setMensajeExtra] = useState('');
+  // cédulas que se entregaron sin estar en la lista de esta Fecha+Bodega
+  const [noProgramados, setNoProgramados] = useState([]);
+
+  // entrada principal: cédula de la persona a la que se le está entregando
+  const [entradaCedula, setEntradaCedula] = useState('');
+  const [mensajeEntrada, setMensajeEntrada] = useState(null); // {tipo: 'exito'|'advertencia'|'info', texto}
+  const inputRef = useRef(null);
 
   useEffect(() => {
     setReclamados(new Set());
-    setExtras([]);
-    setCedulaExtra('');
-    setEstadoExtra('vacio');
+    setNoProgramados([]);
+    setEntradaCedula('');
+    setMensajeEntrada(null);
 
     if (!bodega) {
       setDatos(null);
@@ -71,34 +77,11 @@ export default function ChecklistComidas() {
     };
   }, [fecha, bodega]);
 
-  // Búsqueda de la persona "extra" (reclamó sin estar en la lista esperada)
   useEffect(() => {
-    const soloDigitos = cedulaExtra.replace(/\D/g, '');
-    if (!soloDigitos) {
-      setEstadoExtra('vacio');
-      setPersonaExtra(null);
-      return;
+    if (datos && !cargando) {
+      inputRef.current?.focus();
     }
-    setEstadoExtra('buscando');
-    const temporizador = setTimeout(async () => {
-      try {
-        const resp = await fetch(`/api/buscar-persona?cedula=${encodeURIComponent(soloDigitos)}`);
-        const json = await resp.json();
-        if (!json.encontrada) {
-          setEstadoExtra('error');
-          setPersonaExtra(null);
-          setMensajeExtra(json.motivo || 'No se encontró esa cédula.');
-          return;
-        }
-        setEstadoExtra('encontrada');
-        setPersonaExtra({ cedula: soloDigitos, nombre: json.nombre, area: json.area });
-      } catch (e) {
-        setEstadoExtra('error');
-        setMensajeExtra('No se pudo consultar el listado maestro.');
-      }
-    }, 500);
-    return () => clearTimeout(temporizador);
-  }, [cedulaExtra]);
+  }, [datos, cargando]);
 
   function alternarReclamado(cedula) {
     setReclamados((anterior) => {
@@ -112,18 +95,51 @@ export default function ChecklistComidas() {
     });
   }
 
-  function agregarExtra() {
-    if (!personaExtra) return;
-    if (extras.some((p) => p.cedula === personaExtra.cedula) || datos?.esperados.some((p) => p.cedula === personaExtra.cedula)) {
-      setMensajeExtra('Esa persona ya está en la lista.');
-      setEstadoExtra('error');
-      return;
+  async function registrarEntrega(cedulaCruda) {
+    const cedula = (cedulaCruda || '').replace(/\D/g, '');
+    if (!cedula) return;
+
+    const listaCompleta = [...(datos?.esperados || []), ...(datos?.revisarManual || [])];
+    const persona = listaCompleta.find((p) => p.cedula === cedula);
+
+    if (persona) {
+      if (reclamados.has(cedula)) {
+        setMensajeEntrada({ tipo: 'advertencia', texto: `⚠️ Ya se le había entregado la comida a ${persona.nombre}.` });
+      } else {
+        setReclamados((anterior) => new Set(anterior).add(cedula));
+        setMensajeEntrada({ tipo: 'exito', texto: `✅ ${persona.nombre} — comida entregada.` });
+      }
+    } else if (noProgramados.some((p) => p.cedula === cedula)) {
+      setMensajeEntrada({ tipo: 'advertencia', texto: '⚠️ Esa cédula ya se había registrado en "No programados".' });
+    } else {
+      setNoProgramados((anteriores) => [...anteriores, { cedula, nombre: null, area: null, cargando: true, noEncontrada: false }]);
+      setMensajeEntrada({ tipo: 'info', texto: `Cédula ${cedula} no estaba en la lista de esta Bodega — se agregó a "No programados".` });
+
+      try {
+        const resp = await fetch(`/api/buscar-persona?cedula=${encodeURIComponent(cedula)}`);
+        const json = await resp.json();
+        setNoProgramados((anteriores) =>
+          anteriores.map((p) =>
+            p.cedula === cedula
+              ? {
+                  ...p,
+                  cargando: false,
+                  nombre: json.encontrada ? json.nombre : null,
+                  area: json.encontrada ? json.area : null,
+                  noEncontrada: !json.encontrada,
+                }
+              : p
+          )
+        );
+      } catch (e) {
+        setNoProgramados((anteriores) =>
+          anteriores.map((p) => (p.cedula === cedula ? { ...p, cargando: false, noEncontrada: true } : p))
+        );
+      }
     }
-    setExtras((anteriores) => [...anteriores, personaExtra]);
-    setReclamados((anterior) => new Set(anterior).add(personaExtra.cedula));
-    setCedulaExtra('');
-    setEstadoExtra('vacio');
-    setPersonaExtra(null);
+
+    setEntradaCedula('');
+    inputRef.current?.focus();
   }
 
   const esperados = datos ? datos.esperados : [];
@@ -161,6 +177,48 @@ export default function ChecklistComidas() {
 
       {datos && !cargando && (
         <>
+          <h2 style={{ ...estilos.h2, marginTop: 8 }}>Entregar comida</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              registrarEntrega(entradaCedula);
+            }}
+            style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
+          >
+            <input
+              ref={inputRef}
+              style={{ ...estilos.input, flex: '1 1 220px', fontSize: 20, padding: 14 }}
+              type="tel"
+              inputMode="numeric"
+              placeholder="Escribe la cédula y presiona Entregar"
+              value={entradaCedula}
+              onChange={(e) => {
+                setEntradaCedula(e.target.value);
+                setMensajeEntrada(null);
+              }}
+            />
+            <button
+              type="submit"
+              style={{ ...estilos.boton, width: 'auto', marginTop: 0, padding: '14px 24px', fontSize: 16 }}
+            >
+              Entregar
+            </button>
+          </form>
+          {mensajeEntrada && (
+            <div
+              style={{
+                ...estilos.aviso,
+                ...(mensajeEntrada.tipo === 'exito'
+                  ? estilos.avisoExito
+                  : mensajeEntrada.tipo === 'advertencia'
+                  ? estilos.avisoAdvertencia
+                  : estilos.avisoInfo),
+              }}
+            >
+              {mensajeEntrada.texto}
+            </div>
+          )}
+
           <div style={estilos.filaTarjetas}>
             <div style={estilos.tarjeta}>
               <div style={estilos.tarjetaValor}>{totalEsperados}</div>
@@ -175,12 +233,15 @@ export default function ChecklistComidas() {
               <div style={estilos.tarjetaEtiqueta}>Faltan por reclamar</div>
             </div>
             <div style={{ ...estilos.tarjeta, borderTop: '4px solid #e37400' }}>
-              <div style={estilos.tarjetaValor}>{extras.length}</div>
-              <div style={estilos.tarjetaEtiqueta}>Extras (no esperados)</div>
+              <div style={estilos.tarjetaValor}>{noProgramados.length}</div>
+              <div style={estilos.tarjetaEtiqueta}>No programados</div>
             </div>
           </div>
 
           <h2 style={estilos.h2}>Lista de entrega ({totalEsperados})</h2>
+          <p style={estilos.textoSecundario}>
+            Se tachan solas al escribir la cédula arriba. También puedes tocar un nombre para marcarlo manualmente.
+          </p>
           {totalEsperados === 0 ? (
             <p style={estilos.textoSecundario}>Nadie tiene alimentación esperada en esta Bodega para este día.</p>
           ) : (
@@ -226,51 +287,22 @@ export default function ChecklistComidas() {
             </>
           )}
 
-          {extras.length > 0 && (
+          {noProgramados.length > 0 && (
             <>
-              <h2 style={estilos.h2}>Reclamaron sin estar en la lista</h2>
+              <h2 style={estilos.h2}>No programados (se entregó comida sin estar en esta lista)</h2>
               <ul style={estilos.listaChecklist}>
-                {extras.map((p) => (
+                {noProgramados.map((p) => (
                   <li key={p.cedula} style={estilos.itemChecklist}>
-                    ✅ {p.nombre} — {p.area} ({p.cedula})
+                    {p.cargando
+                      ? `Buscando... (${p.cedula})`
+                      : p.noEncontrada
+                      ? `⚠️ Cédula ${p.cedula} — no se encontró en el listado maestro`
+                      : `✅ ${p.nombre} — ${p.area} (${p.cedula})`}
                   </li>
                 ))}
               </ul>
             </>
           )}
-
-          <h2 style={estilos.h2}>Agregar persona que reclamó y no está en la lista</h2>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <input
-              style={{ ...estilos.input, flex: '1 1 200px' }}
-              type="tel"
-              inputMode="numeric"
-              placeholder="Cédula"
-              value={cedulaExtra}
-              onChange={(e) => setCedulaExtra(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={agregarExtra}
-              disabled={estadoExtra !== 'encontrada'}
-              style={{
-                ...estilos.boton,
-                width: 'auto',
-                marginTop: 0,
-                padding: '10px 20px',
-                ...(estadoExtra !== 'encontrada' ? estilos.botonDeshabilitado : {}),
-              }}
-            >
-              Agregar
-            </button>
-          </div>
-          {estadoExtra === 'buscando' && <p style={estilos.textoSecundario}>Buscando...</p>}
-          {estadoExtra === 'encontrada' && personaExtra && (
-            <div style={{ ...estilos.aviso, ...estilos.avisoExito }}>
-              ✅ {personaExtra.nombre} — {personaExtra.area}
-            </div>
-          )}
-          {estadoExtra === 'error' && <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {mensajeExtra}</div>}
         </>
       )}
     </main>
@@ -292,7 +324,7 @@ const estilos = {
     minWidth: 160,
     boxSizing: 'border-box',
   },
-  filaTarjetas: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 },
+  filaTarjetas: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 },
   tarjeta: { flex: '1 1 110px', background: '#f6f8fa', borderRadius: 8, padding: 12, textAlign: 'center', borderTop: '4px solid #1a73e8' },
   tarjetaValor: { fontSize: 24, fontWeight: 700 },
   tarjetaEtiqueta: { fontSize: 12, color: '#555', marginTop: 2 },
@@ -300,6 +332,8 @@ const estilos = {
   aviso: { padding: 10, borderRadius: 8, marginTop: 8, fontSize: 14 },
   avisoExito: { background: '#e6f4ea', color: '#1e7e34' },
   avisoError: { background: '#fdecea', color: '#b3261e' },
+  avisoAdvertencia: { background: '#fff4e5', color: '#9a5b00' },
+  avisoInfo: { background: '#e8f0fe', color: '#1a53a8' },
   listaChecklist: { listStyle: 'none', padding: 0, margin: 0 },
   itemChecklist: { padding: '10px 4px', borderBottom: '1px solid #eee' },
   labelChecklist: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 15 },

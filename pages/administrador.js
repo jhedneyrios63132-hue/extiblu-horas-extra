@@ -87,7 +87,18 @@ export default function Administrador() {
       if (!json.ok) {
         setErrorAsistencia(json.error || 'No se pudo guardar la confirmación.');
       } else {
-        await cargarDatos();
+        // Actualiza solo esa fila en memoria (sin recargar todo desde el
+        // servidor) para que la página no "salte" ni pierda la posición al
+        // confirmar muchas personas seguidas.
+        setDatos((anterior) => {
+          if (!anterior) return anterior;
+          return {
+            ...anterior,
+            programados: anterior.programados.map((p) =>
+              p.cedula === cedula ? { ...p, asistioReal } : p
+            ),
+          };
+        });
       }
     } catch (e) {
       setErrorAsistencia('No se pudo guardar la confirmación. Intenta de nuevo.');
