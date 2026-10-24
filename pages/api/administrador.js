@@ -5,9 +5,11 @@
  * los datos de Google Sheets y se valida la entrada.
  *
  * GET /api/administrador?fecha=YYYY-MM-DD&area=PRODUCCION|LOGISTICA|AMBAS
+ *                        &bodega=TODAS|Bodega 222|Bodega 224|Bodega 230
  */
 const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
-const { construirRespuesta } = require('../../lib/resumenAdministrador');
+const { construirRespuesta, TODAS_LAS_BODEGAS } = require('../../lib/resumenAdministrador');
+const { BODEGAS_VALIDAS } = require('../../lib/reglasNegocio');
 
 function fechaValida(fecha) {
   return /^\d{4}-\d{2}-\d{2}$/.test((fecha || '').trim());
@@ -19,7 +21,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { fecha, area } = req.query;
+    const { fecha, area, bodega } = req.query;
 
     if (!fechaValida(fecha)) {
       return res.status(400).json({ ok: false, error: 'Selecciona una fecha válida.' });
@@ -27,9 +29,21 @@ export default async function handler(req, res) {
 
     const areaSeleccionada = (area || '').toUpperCase().trim();
 
+    // El filtro de Bodega es opcional; si no viene, equivale a "todas".
+    const bodegaSeleccionada = (bodega || '').trim() || TODAS_LAS_BODEGAS;
+    if (bodegaSeleccionada !== TODAS_LAS_BODEGAS && !BODEGAS_VALIDAS.includes(bodegaSeleccionada)) {
+      return res.status(400).json({ ok: false, error: 'Selecciona una Bodega válida.' });
+    }
+
     const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
 
-    const respuesta = construirRespuesta({ fecha, areaSeleccionada, maestroCompleto, registros });
+    const respuesta = construirRespuesta({
+      fecha,
+      areaSeleccionada,
+      bodegaSeleccionada,
+      maestroCompleto,
+      registros,
+    });
 
     return res.status(200).json({ ok: true, ...respuesta });
   } catch (error) {

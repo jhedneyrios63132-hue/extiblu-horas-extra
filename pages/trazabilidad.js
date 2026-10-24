@@ -5,6 +5,7 @@
  * Administrador (columna "¿Asistió realmente?").
  */
 import { useEffect, useState } from 'react';
+import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
 
 export default function Trazabilidad() {
   const [cedula, setCedula] = useState('');
@@ -49,6 +50,8 @@ export default function Trazabilidad() {
   }, [cedula]);
 
   return (
+    <>
+    <EncabezadoGlovanze />
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
       <p style={estilos.subtitulo}>
@@ -141,6 +144,7 @@ export default function Trazabilidad() {
         </>
       )}
     </main>
+    </>
   );
 }
 

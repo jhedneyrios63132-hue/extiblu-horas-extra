@@ -10,6 +10,7 @@
  * momento de la entrega.
  */
 import { useEffect, useRef, useState } from 'react';
+import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
 
 const BODEGAS = ['Bodega 222', 'Bodega 224', 'Bodega 230'];
 
@@ -149,6 +150,8 @@ export default function ChecklistComidas() {
   const faltanPorReclamar = esperados.filter((p) => !reclamados.has(p.cedula));
 
   return (
+    <>
+    <EncabezadoGlovanze />
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
       <p style={estilos.subtitulo}>Checklist de entrega de comidas</p>
@@ -306,6 +309,7 @@ export default function ChecklistComidas() {
         </>
       )}
     </main>
+    </>
   );
 }
 

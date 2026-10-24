@@ -3,7 +3,10 @@
  * resumen (programados, faltantes, duplicados, horas extra y
  * alimentaciones a pedir) sin que nadie tenga que comparar nada a mano.
  */
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
+
+const BODEGAS = ['Bodega 222', 'Bodega 224', 'Bodega 230'];
 
 function hoyISO() {
   const ahora = new Date();
@@ -39,18 +42,29 @@ function ResumenArea({ titulo, resumen }) {
 export default function Administrador() {
   const [fecha, setFecha] = useState(hoyISO());
   const [area, setArea] = useState('AMBAS');
+  const [bodega, setBodega] = useState('TODAS');
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [comidasOtrasAreas, setComidasOtrasAreas] = useState(0);
   const [guardandoAsistencia, setGuardandoAsistencia] = useState(new Set());
   const [errorAsistencia, setErrorAsistencia] = useState('');
+  const [vistaLista, setVistaLista] = useState('PROGRAMADOS');
+
+  // Edición de un registro ya existente (solo desde esta pantalla).
+  const [editando, setEditando] = useState(null); // cédula de la persona que se está editando, o null
+  const [formEdicion, setFormEdicion] = useState(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState('');
 
   async function cargarDatos(cancelRef) {
     setCargando(true);
     setError('');
     try {
-      const resp = await fetch(`/api/administrador?fecha=${encodeURIComponent(fecha)}&area=${encodeURIComponent(area)}`);
+      const resp = await fetch(
+        `/api/administrador?fecha=${encodeURIComponent(fecha)}&area=${encodeURIComponent(area)}` +
+          `&bodega=${encodeURIComponent(bodega)}`
+      );
       const json = await resp.json();
       if (cancelRef && cancelRef.cancelado) return;
       if (!json.ok) {
@@ -72,7 +86,7 @@ export default function Administrador() {
     return () => {
       cancelRef.cancelado = true;
     };
-  }, [fecha, area]);
+  }, [fecha, area, bodega]);
 
   async function confirmarAsistencia(cedula, asistioReal) {
     setErrorAsistencia('');
@@ -111,9 +125,67 @@ export default function Administrador() {
     }
   }
 
+  function abrirEdicion(p) {
+    setEditando(p.cedula);
+    setFormEdicion({
+      bodega: p.bodega || '',
+      asiste: p.asiste === 'No' ? 'No' : 'Si',
+      motivo: p.motivo || '',
+      horaSalidaReal: p.horaSalidaReal || '',
+      editadoPor: '',
+    });
+    setErrorEdicion('');
+  }
+
+  function cancelarEdicion() {
+    setEditando(null);
+    setErrorEdicion('');
+  }
+
+  async function guardarEdicion(cedula) {
+    setErrorEdicion('');
+    if (formEdicion.asiste === 'No' && !formEdicion.motivo.trim()) {
+      setErrorEdicion('Si no asiste, el motivo es obligatorio.');
+      return;
+    }
+    if (!formEdicion.editadoPor.trim()) {
+      setErrorEdicion('Escribe tu nombre antes de guardar el cambio.');
+      return;
+    }
+    setGuardandoEdicion(true);
+    try {
+      const resp = await fetch('/api/editar-registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cedula,
+          fecha,
+          bodega: formEdicion.bodega,
+          asiste: formEdicion.asiste,
+          motivo: formEdicion.motivo,
+          horaSalidaReal: formEdicion.horaSalidaReal,
+          editadoPor: formEdicion.editadoPor,
+        }),
+      });
+      const json = await resp.json();
+      if (!json.ok) {
+        setErrorEdicion(json.error || 'No se pudo guardar el cambio.');
+      } else {
+        setEditando(null);
+        await cargarDatos();
+      }
+    } catch (e) {
+      setErrorEdicion('No se pudo guardar el cambio. Intenta de nuevo.');
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  }
+
   const totalAlimentacionesConExtra = (datos ? datos.totalAlimentaciones : 0) + (Number(comidasOtrasAreas) || 0);
 
   return (
+    <>
+    <EncabezadoGlovanze />
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
       <p style={estilos.subtitulo}>
@@ -133,7 +205,26 @@ export default function Administrador() {
             <option value="LOGISTICA">Logística</option>
           </select>
         </div>
+        <div>
+          <label style={estilos.etiqueta}>Bodega</label>
+          <select style={estilos.input} value={bodega} onChange={(e) => setBodega(e.target.value)}>
+            <option value="TODAS">Todas las bodegas</option>
+            {BODEGAS.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {bodega !== 'TODAS' && (
+        <div style={{ ...estilos.aviso, ...estilos.avisoInfo }}>
+          Mostrando solo <strong>{bodega}</strong>: la tabla de programados y las alimentaciones son de esa
+          Bodega. Los totales del día y los faltantes siguen siendo de toda el área seleccionada, porque quien
+          falta por programar todavía no tiene Bodega asignada.
+        </div>
+      )}
 
       {cargando && <p>Cargando...</p>}
       {error && <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {error}</div>}
@@ -219,86 +310,211 @@ export default function Administrador() {
             </>
           )}
 
-          <h2 style={estilos.h2}>Faltantes por programar ({datos.faltantes.length})</h2>
-          {datos.faltantes.length === 0 ? (
-            <p style={estilos.textoSecundario}>Nadie falta por programar. 🎉</p>
-          ) : (
-            <ul style={estilos.lista}>
-              {datos.faltantes.map((p) => (
-                <li key={p.cedula}>
-                  {p.nombre} ({p.cedula}) — {p.area}
-                </li>
-              ))}
-            </ul>
+          <div style={{ marginTop: 32 }}>
+            <label style={estilos.etiqueta}>Ver lista</label>
+            <select style={estilos.input} value={vistaLista} onChange={(e) => setVistaLista(e.target.value)}>
+              <option value="PROGRAMADOS">Programados ({datos.programados.length})</option>
+              <option value="FALTANTES">Faltan por programar ({datos.faltantes.length})</option>
+            </select>
+          </div>
+
+          {vistaLista === 'FALTANTES' && (
+            <>
+              <h2 style={estilos.h2}>Faltantes por programar ({datos.faltantes.length})</h2>
+              {datos.faltantes.length === 0 ? (
+                <p style={estilos.textoSecundario}>Nadie falta por programar. 🎉</p>
+              ) : (
+                <ul style={estilos.lista}>
+                  {datos.faltantes.map((p) => (
+                    <li key={p.cedula}>
+                      {p.nombre} ({p.cedula}) — {p.area}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
 
-          <h2 style={estilos.h2}>Programados ({datos.programados.length})</h2>
-          {errorAsistencia && <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {errorAsistencia}</div>}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={estilos.tabla}>
-              <thead>
-                <tr>
-                  <th style={estilos.th}>Nombre</th>
-                  <th style={estilos.th}>Área</th>
-                  <th style={estilos.th}>Bodega</th>
-                  <th style={estilos.th}>Asiste</th>
-                  <th style={estilos.th}>Hora efectiva</th>
-                  <th style={estilos.th}>Horas extra</th>
-                  <th style={estilos.th}>Alimentación</th>
-                  <th style={estilos.th}>¿Asistió realmente?</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datos.programados.map((p) => (
-                  <tr key={p.cedula}>
-                    <td style={estilos.td}>{p.nombre}</td>
-                    <td style={estilos.td}>{p.area}</td>
-                    <td style={estilos.td}>{p.bodega}</td>
-                    <td style={estilos.td}>{p.asiste}{p.motivo ? ` (${p.motivo})` : ''}</td>
-                    <td style={estilos.td}>{p.calculo ? p.calculo.horaEfectiva || '—' : '—'}</td>
-                    <td style={estilos.td}>{p.calculo ? p.calculo.horasExtraTexto || '—' : '—'}</td>
-                    <td style={estilos.td}>
-                      {p.calculo
-                        ? p.calculo.requiereRevisionManual
-                          ? '⚠️ Revisar'
-                          : p.calculo.tieneAlimentacion
-                          ? '✅ Sí'
-                          : 'No'
-                        : '—'}
-                    </td>
-                    <td style={estilos.td}>
-                      {!p.calculo ? (
-                        '—'
-                      ) : (
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            type="button"
-                            disabled={guardandoAsistencia.has(p.cedula)}
-                            onClick={() => confirmarAsistencia(p.cedula, 'Si')}
-                            style={p.asistioReal === 'Si' ? estilos.botonAsistenciaActivoSi : estilos.botonAsistencia}
-                          >
-                            Sí
-                          </button>
-                          <button
-                            type="button"
-                            disabled={guardandoAsistencia.has(p.cedula)}
-                            onClick={() => confirmarAsistencia(p.cedula, 'No')}
-                            style={p.asistioReal === 'No' ? estilos.botonAsistenciaActivoNo : estilos.botonAsistencia}
-                          >
-                            No
-                          </button>
-                          {!p.asistioReal && <span style={estilos.textoSecundario}>Sin confirmar</span>}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {vistaLista === 'PROGRAMADOS' && (
+            <>
+              <h2 style={estilos.h2}>
+                Programados{bodega !== 'TODAS' ? ` en ${bodega}` : ''} ({datos.programados.length})
+              </h2>
+              <p style={estilos.textoSecundario}>
+                Para corregir el registro de alguien (Bodega, Asiste, Hora de salida), usa "Editar" — esto solo lo
+                puede hacer un administrador, no la persona misma.
+              </p>
+              {errorAsistencia && <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {errorAsistencia}</div>}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={estilos.tabla}>
+                  <thead>
+                    <tr>
+                      <th style={estilos.th}>Nombre</th>
+                      <th style={estilos.th}>Área</th>
+                      <th style={estilos.th}>Bodega</th>
+                      <th style={estilos.th}>Asiste</th>
+                      <th style={estilos.th}>Hora efectiva</th>
+                      <th style={estilos.th}>Horas extra</th>
+                      <th style={estilos.th}>Alimentación</th>
+                      <th style={estilos.th}>¿Asistió realmente?</th>
+                      <th style={estilos.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {datos.programados.map((p) => (
+                      <Fragment key={p.cedula}>
+                        <tr>
+                          <td style={estilos.td}>{p.nombre}</td>
+                          <td style={estilos.td}>{p.area}</td>
+                          <td style={estilos.td}>{p.bodega}</td>
+                          <td style={estilos.td}>{p.asiste}{p.motivo ? ` (${p.motivo})` : ''}</td>
+                          <td style={estilos.td}>{p.calculo ? p.calculo.horaEfectiva || '—' : '—'}</td>
+                          <td style={estilos.td}>{p.calculo ? p.calculo.horasExtraTexto || '—' : '—'}</td>
+                          <td style={estilos.td}>
+                            {p.calculo
+                              ? p.calculo.requiereRevisionManual
+                                ? '⚠️ Revisar'
+                                : p.calculo.tieneAlimentacion
+                                ? '✅ Sí'
+                                : 'No'
+                              : '—'}
+                          </td>
+                          <td style={estilos.td}>
+                            {!p.calculo ? (
+                              '—'
+                            ) : (
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button
+                                  type="button"
+                                  disabled={guardandoAsistencia.has(p.cedula)}
+                                  onClick={() => confirmarAsistencia(p.cedula, 'Si')}
+                                  style={p.asistioReal === 'Si' ? estilos.botonAsistenciaActivoSi : estilos.botonAsistencia}
+                                >
+                                  Sí
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={guardandoAsistencia.has(p.cedula)}
+                                  onClick={() => confirmarAsistencia(p.cedula, 'No')}
+                                  style={p.asistioReal === 'No' ? estilos.botonAsistenciaActivoNo : estilos.botonAsistencia}
+                                >
+                                  No
+                                </button>
+                                {!p.asistioReal && <span style={estilos.textoSecundario}>Sin confirmar</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td style={estilos.td}>
+                            {editando !== p.cedula && (
+                              <button type="button" style={estilos.botonEditar} onClick={() => abrirEdicion(p)}>
+                                ✏️ Editar
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {editando === p.cedula && formEdicion && (
+                          <tr>
+                            <td style={estilos.tdEdicion} colSpan={9}>
+                              <div style={estilos.panelEdicion}>
+                                <strong>Editando a {p.nombre}</strong>
+
+                                <div style={estilos.filaFormEdicion}>
+                                  <div>
+                                    <label style={estilos.etiqueta}>Bodega</label>
+                                    <select
+                                      style={estilos.input}
+                                      value={formEdicion.bodega}
+                                      onChange={(e) => setFormEdicion({ ...formEdicion, bodega: e.target.value })}
+                                    >
+                                      {BODEGAS.map((b) => (
+                                        <option key={b} value={b}>
+                                          {b}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label style={estilos.etiqueta}>Asiste</label>
+                                    <select
+                                      style={estilos.input}
+                                      value={formEdicion.asiste}
+                                      onChange={(e) => setFormEdicion({ ...formEdicion, asiste: e.target.value })}
+                                    >
+                                      <option value="Si">Sí</option>
+                                      <option value="No">No</option>
+                                    </select>
+                                  </div>
+                                  {formEdicion.asiste === 'No' ? (
+                                    <div>
+                                      <label style={estilos.etiqueta}>Motivo</label>
+                                      <input
+                                        style={estilos.input}
+                                        type="text"
+                                        value={formEdicion.motivo}
+                                        onChange={(e) => setFormEdicion({ ...formEdicion, motivo: e.target.value })}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <label style={estilos.etiqueta}>Hora de salida real (opcional)</label>
+                                      <input
+                                        style={estilos.input}
+                                        type="text"
+                                        placeholder="HH:MM, en blanco = jornada completa"
+                                        value={formEdicion.horaSalidaReal}
+                                        onChange={(e) => setFormEdicion({ ...formEdicion, horaSalidaReal: e.target.value })}
+                                      />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <label style={estilos.etiqueta}>Tu nombre (quién edita)</label>
+                                    <input
+                                      style={estilos.input}
+                                      type="text"
+                                      placeholder="Obligatorio"
+                                      value={formEdicion.editadoPor}
+                                      onChange={(e) => setFormEdicion({ ...formEdicion, editadoPor: e.target.value })}
+                                    />
+                                  </div>
+                                </div>
+
+                                {errorEdicion && (
+                                  <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {errorEdicion}</div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                  <button
+                                    type="button"
+                                    disabled={guardandoEdicion}
+                                    onClick={() => guardarEdicion(p.cedula)}
+                                    style={estilos.boton}
+                                  >
+                                    {guardandoEdicion ? 'Guardando...' : 'Guardar cambio'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={guardandoEdicion}
+                                    onClick={cancelarEdicion}
+                                    style={estilos.botonSecundario}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </>
       )}
     </main>
+    </>
   );
 }
 
@@ -325,6 +541,7 @@ const estilos = {
   textoSecundario: { color: '#555', fontSize: 14 },
   aviso: { padding: 10, borderRadius: 8, marginTop: 8, fontSize: 14 },
   avisoError: { background: '#fdecea', color: '#b3261e' },
+  avisoInfo: { background: '#e8f0fe', color: '#1a53a8' },
   lista: { paddingLeft: 20, lineHeight: 1.8 },
   tabla: { width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 14 },
   th: { textAlign: 'left', borderBottom: '2px solid #ddd', padding: '8px 6px', background: '#f6f8fa' },
@@ -357,4 +574,37 @@ const estilos = {
     fontWeight: 600,
     cursor: 'pointer',
   },
+  botonEditar: {
+    padding: '4px 10px',
+    fontSize: 13,
+    borderRadius: 6,
+    border: '1px solid #1a73e8',
+    background: '#fff',
+    color: '#1a73e8',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  boton: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: '#fff',
+    background: '#1a73e8',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 20px',
+    cursor: 'pointer',
+  },
+  botonSecundario: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: '#555',
+    background: '#fff',
+    border: '1px solid #ccc',
+    borderRadius: 8,
+    padding: '10px 20px',
+    cursor: 'pointer',
+  },
+  tdEdicion: { padding: 0, borderBottom: '1px solid #eee', background: '#f6f8fa' },
+  panelEdicion: { padding: 16 },
+  filaFormEdicion: { display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 },
 };

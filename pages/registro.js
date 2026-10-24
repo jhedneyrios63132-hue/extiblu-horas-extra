@@ -14,6 +14,7 @@
  *    día para la misma persona.
  */
 import { useEffect, useState } from 'react';
+import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
 
 const BODEGAS = ['Bodega 222', 'Bodega 224', 'Bodega 230'];
 
@@ -136,6 +137,8 @@ export default function Registro() {
   // ---- Pantalla de éxito ----
   if (resultado && resultado.ok) {
     return (
+      <>
+      <EncabezadoGlovanze />
       <main style={estilos.contenedor}>
         <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
         <div style={{ ...estilos.aviso, ...estilos.avisoExito }}>✅ {resultado.mensaje}</div>
@@ -143,10 +146,13 @@ export default function Registro() {
           Registrar otra persona
         </button>
       </main>
+      </>
     );
   }
 
   return (
+    <>
+    <EncabezadoGlovanze />
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
       <p style={estilos.subtitulo}>Registro de horas extra</p>
@@ -252,6 +258,7 @@ export default function Registro() {
         </button>
       </form>
     </main>
+    </>
   );
 }
 

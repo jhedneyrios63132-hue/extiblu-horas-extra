@@ -1,8 +1,11 @@
 /**
  * Página de inicio: punto de entrada a las pantallas de la herramienta.
  */
+import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
 export default function Inicio() {
   return (
+    <>
+    <EncabezadoGlovanze />
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24, maxWidth: 480, margin: '0 auto' }}>
       <h1 style={{ fontSize: 20 }}>Programaciones Extiblu</h1>
       <p>
@@ -21,5 +24,6 @@ export default function Inicio() {
         (Prueba técnica de la conexión al maestro: <a href="/api/prueba-maestro">/api/prueba-maestro</a>)
       </p>
     </main>
+    </>
   );
 }
