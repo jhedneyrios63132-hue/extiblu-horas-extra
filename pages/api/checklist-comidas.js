@@ -9,7 +9,7 @@
  * o Logística (confirmado con la usuaria el 2026-09-29).
  */
 const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
-const { construirResumen } = require('../../lib/resumenAdministrador');
+const { construirResumen, TODAS_LAS_AREAS } = require('../../lib/resumenAdministrador');
 const { BODEGAS_VALIDAS } = require('../../lib/reglasNegocio');
 
 function fechaValida(fecha) {
@@ -34,9 +34,10 @@ export default async function handler(req, res) {
     const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
     const registrosDelDia = registros.filter((r) => (r.Fecha || '').trim() === fecha.trim());
 
-    // Se cruza con TODO el personal en alcance (Producción + Logística), porque
-    // la Bodega no depende del área.
-    const resumen = construirResumen(['PRODUCCION', 'LOGISTICA'], maestroCompleto, registrosDelDia);
+    // Se cruza con TODO el personal del maestro, sin filtrar por área: la
+    // comida se entrega por Bodega y desde el 2026-11-03 entra todo el
+    // personal, no solo Producción y Logística.
+    const resumen = construirResumen(TODAS_LAS_AREAS, maestroCompleto, registrosDelDia);
     const deEstaBodega = resumen.programados.filter((p) => (p.bodega || '').trim() === bodega);
 
     const esperados = deEstaBodega

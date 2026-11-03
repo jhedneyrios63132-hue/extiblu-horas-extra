@@ -4,8 +4,13 @@
  * lib/resumenAdministrador.js (con pruebas propias); aquí solo se leen
  * los datos de Google Sheets y se valida la entrada.
  *
- * GET /api/administrador?fecha=YYYY-MM-DD&area=PRODUCCION|LOGISTICA|AMBAS
+ * GET /api/administrador?fecha=YYYY-MM-DD
+ *                        &area=TODAS|<cualquier área del maestro>
  *                        &bodega=TODAS|Bodega 222|Bodega 224|Bodega 230
+ *
+ * El área puede ser cualquiera de las que existan en el listado maestro
+ * (Producción, Logística, Mantenimiento, Calidad...). La respuesta incluye
+ * `areasDisponibles` para que la pantalla arme su selector sola.
  */
 const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
 const { construirRespuesta, TODAS_LAS_BODEGAS } = require('../../lib/resumenAdministrador');
@@ -27,7 +32,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Selecciona una fecha válida.' });
     }
 
-    const areaSeleccionada = (area || '').toUpperCase().trim();
+    // Si no viene área, equivale a "todo el personal del maestro".
+    const areaSeleccionada = (area || '').toUpperCase().trim() || 'TODAS';
 
     // El filtro de Bodega es opcional; si no viene, equivale a "todas".
     const bodegaSeleccionada = (bodega || '').trim() || TODAS_LAS_BODEGAS;
@@ -48,7 +54,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, ...respuesta });
   } catch (error) {
     if (error.message.includes('Área inválida')) {
-      return res.status(400).json({ ok: false, error: 'Selecciona un área válida (Producción, Logística o Ambas).' });
+      return res.status(400).json({ ok: false, error: 'Selecciona un área que exista en el listado maestro.' });
     }
     return res.status(500).json({ ok: false, error: error.message });
   }

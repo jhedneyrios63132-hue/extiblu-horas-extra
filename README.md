@@ -41,10 +41,11 @@ personal de Google ni a nada más.
    - `Fecha`: formato `AAAA-MM-DD` (ej. `2026-09-16`).
    - `Asiste`: `Si` o `No`.
    - `Hora_salida_real`: formato `HH:MM` en 24 horas (ej. `16:30`), solo se llena cuando aplica.
-   - `Asistio_Real` (columna J): la llena la herramienta misma cuando un administrador
-     confirma, desde el Panel de Administrador, si la persona realmente asistió a
-     sus horas extra (`Si` o `No`). Queda vacía hasta que alguien la confirme — no
-     hace falta llenarla a mano, solo crear la columna con ese encabezado exacto.
+   - `Asistio_Real` (columna J): la llena la herramienta misma cuando se confirma si la
+     persona realmente asistió a sus horas extra (`Si` o `No`), ya sea escaneando cédulas
+     en la pantalla "Confirmar asistencia" o con los botones Sí/No del Panel de
+     Administrador. Queda vacía hasta que alguien la confirme — no hace falta llenarla a
+     mano, solo crear la columna con ese encabezado exacto.
    - `Editado_Por` (columna K) y `Fecha_Edicion` (columna L): las llena la herramienta
      sola cuando un administrador corrige un registro ya existente desde el Panel de
      Administrador (Bodega, Asiste/Motivo u Hora de salida real). Quedan vacías hasta

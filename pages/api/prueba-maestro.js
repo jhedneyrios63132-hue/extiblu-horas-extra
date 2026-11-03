@@ -13,20 +13,24 @@
  * pantalla de administrador).
  */
 const { leerMaestro } = require('../../lib/googleSheets');
-const { AREAS_PERMITIDAS } = require('../../lib/reglasNegocio');
 
 export default async function handler(req, res) {
   try {
     const personal = await leerMaestro();
 
-    const relevantes = personal.filter((p) =>
-      AREAS_PERMITIDAS.includes((p.AREA || '').toUpperCase().trim())
-    );
+    // Desde el 2026-11-03 todo el personal del maestro entra en la
+    // programación, así que lo útil de ver aquí es cuánta gente hay en
+    // cada área.
+    const porArea = {};
+    personal.forEach((p) => {
+      const area = (p.AREA || '').toUpperCase().trim() || '(sin área)';
+      porArea[area] = (porArea[area] || 0) + 1;
+    });
 
     res.status(200).json({
       ok: true,
       totalFilasEnMaestro: personal.length,
-      totalProduccionOLogistica: relevantes.length,
+      personalPorArea: porArea,
       muestra: personal.slice(0, 3),
     });
   } catch (error) {

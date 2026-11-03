@@ -18,6 +18,9 @@ export default function Inicio() {
         <a href="/checklist-comidas" style={{ fontSize: 18 }}>🍽️ Ir a Checklist de entrega de comidas</a>
       </p>
       <p>
+        <a href="/confirmar-asistencia" style={{ fontSize: 18 }}>✅ Ir a Confirmar asistencia</a>
+      </p>
+      <p>
         <a href="/trazabilidad" style={{ fontSize: 18 }}>📈 Ir a Trazabilidad por persona</a>
       </p>
       <p style={{ color: '#666', fontSize: 14 }}>

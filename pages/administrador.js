@@ -25,6 +25,23 @@ function TarjetaNumero({ etiqueta, valor, color }) {
   );
 }
 
+/**
+ * Sección plegable. Se usa para las novedades del día (apoyo, revisión
+ * manual, duplicados, cédulas desconocidas) para que no empujen la tabla de
+ * programados hasta el final de la página: se ve el título con el número de
+ * casos y solo se abre si hay que mirarla.
+ */
+function Desplegable({ titulo, cantidad, etiquetaCantidad, children }) {
+  return (
+    <details style={estilos.desplegable}>
+      <summary style={estilos.desplegableTitulo}>
+        {titulo} <span style={estilos.contador}>{cantidad} {etiquetaCantidad}</span>
+      </summary>
+      <div style={{ padding: '4px 12px 12px' }}>{children}</div>
+    </details>
+  );
+}
+
 function ResumenArea({ titulo, resumen }) {
   return (
     <div style={estilos.bloqueArea}>
@@ -41,7 +58,7 @@ function ResumenArea({ titulo, resumen }) {
 
 export default function Administrador() {
   const [fecha, setFecha] = useState(hoyISO());
-  const [area, setArea] = useState('AMBAS');
+  const [area, setArea] = useState('TODAS');
   const [bodega, setBodega] = useState('TODAS');
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -183,13 +200,20 @@ export default function Administrador() {
 
   const totalAlimentacionesConExtra = (datos ? datos.totalAlimentaciones : 0) + (Number(comidasOtrasAreas) || 0);
 
+  // Cuántas cosas hay realmente por mirar ese día (sin contar el apoyo, que
+  // es informativo y no un problema).
+  const totalNovedades = datos
+    ? datos.revisionManual.length + datos.duplicados.length + datos.fueraDeAlcance.length
+    : 0;
+
   return (
     <>
     <EncabezadoGlovanze />
     <main style={estilos.contenedor}>
       <h1 style={estilos.titulo}>Programaciones Extiblu</h1>
       <p style={estilos.subtitulo}>
-        Panel de Administrador · <a href="/trazabilidad">Ver trazabilidad por persona</a>
+        Panel de Administrador · <a href="/confirmar-asistencia">Confirmar asistencia por escaneo</a> ·{' '}
+        <a href="/trazabilidad">Ver trazabilidad por persona</a>
       </p>
 
       <div style={estilos.filaSelectores}>
@@ -200,9 +224,14 @@ export default function Administrador() {
         <div>
           <label style={estilos.etiqueta}>Área</label>
           <select style={estilos.input} value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="AMBAS">Ambas</option>
-            <option value="PRODUCCION">Producción</option>
-            <option value="LOGISTICA">Logística</option>
+            <option value="TODAS">Todas las áreas</option>
+            {/* Las áreas se leen del listado maestro, así que si aparece una
+                nueva en la hoja sale aquí sola. */}
+            {(datos?.areasDisponibles || []).map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -264,16 +293,57 @@ export default function Administrador() {
           )}
 
           {datos.porArea && (
-            <>
-              <h2 style={estilos.h2}>Resumen por área</h2>
-              <ResumenArea titulo="Producción" resumen={datos.porArea.PRODUCCION} />
-              <ResumenArea titulo="Logística" resumen={datos.porArea.LOGISTICA} />
-            </>
+            <Desplegable
+              titulo="Resumen por área"
+              cantidad={Object.keys(datos.porArea).length}
+              etiquetaCantidad="áreas"
+            >
+              {Object.keys(datos.porArea).map((nombreArea) => (
+                <ResumenArea key={nombreArea} titulo={nombreArea} resumen={datos.porArea[nombreArea]} />
+              ))}
+            </Desplegable>
+          )}
+
+          {/* Las novedades quedan plegadas para que la tabla de programados
+              no quede enterrada al final de la página. Cada una muestra
+              cuántos casos tiene, y se abre solo si hace falta revisarla. */}
+          {totalNovedades === 0 ? (
+            <p style={{ ...estilos.textoSecundario, marginTop: 24 }}>
+              ✅ Sin novedades para este día: no hay casos por revisar, duplicados ni registros fuera del listado.
+            </p>
+          ) : (
+            <h2 style={estilos.h2}>Novedades del día ({totalNovedades})</h2>
+          )}
+
+          {datos.apoyoOtrasAreas.length > 0 && (
+            <Desplegable
+              titulo="Apoyo de otras áreas"
+              cantidad={datos.apoyoOtrasAreas.length}
+              etiquetaCantidad="personas"
+            >
+              <p style={estilos.textoSecundario}>
+                No es un error: son personas de otra área que se registraron este día para apoyar. Su
+                alimentación sí está incluida en el total a pedir de arriba.
+              </p>
+              <ul style={estilos.lista}>
+                {datos.apoyoOtrasAreas.map((p) => (
+                  <li key={p.cedula}>
+                    {p.nombre} ({p.area}) — {p.bodega || 'sin bodega'}
+                    {p.calculo
+                      ? ` · ${p.calculo.horasExtraTexto || '—'}${p.calculo.tieneAlimentacion ? ' · ✅ con alimentación' : ''}`
+                      : ` · no asiste${p.motivo ? ` (${p.motivo})` : ''}`}
+                  </li>
+                ))}
+              </ul>
+            </Desplegable>
           )}
 
           {datos.revisionManual.length > 0 && (
-            <>
-              <h2 style={estilos.h2}>⚠️ Necesitan revisión manual</h2>
+            <Desplegable
+              titulo="⚠️ Necesitan revisión manual"
+              cantidad={datos.revisionManual.length}
+              etiquetaCantidad="casos"
+            >
               <ul style={estilos.lista}>
                 {datos.revisionManual.map((p) => (
                   <li key={p.cedula}>
@@ -281,12 +351,15 @@ export default function Administrador() {
                   </li>
                 ))}
               </ul>
-            </>
+            </Desplegable>
           )}
 
           {datos.duplicados.length > 0 && (
-            <>
-              <h2 style={estilos.h2}>⚠️ Registros duplicados</h2>
+            <Desplegable
+              titulo="⚠️ Registros duplicados"
+              cantidad={datos.duplicados.length}
+              etiquetaCantidad="casos"
+            >
               <ul style={estilos.lista}>
                 {datos.duplicados.map((p) => (
                   <li key={p.cedula}>
@@ -294,12 +367,15 @@ export default function Administrador() {
                   </li>
                 ))}
               </ul>
-            </>
+            </Desplegable>
           )}
 
           {datos.fueraDeAlcance.length > 0 && (
-            <>
-              <h2 style={estilos.h2}>⚠️ Registros fuera de lista o de área</h2>
+            <Desplegable
+              titulo="⚠️ Cédulas que no están en el listado maestro"
+              cantidad={datos.fueraDeAlcance.length}
+              etiquetaCantidad="registros"
+            >
               <ul style={estilos.lista}>
                 {datos.fueraDeAlcance.map((p, i) => (
                   <li key={`${p.cedula}-${i}`}>
@@ -307,7 +383,7 @@ export default function Administrador() {
                   </li>
                 ))}
               </ul>
-            </>
+            </Desplegable>
           )}
 
           <div style={{ marginTop: 32 }}>
@@ -542,6 +618,30 @@ const estilos = {
   aviso: { padding: 10, borderRadius: 8, marginTop: 8, fontSize: 14 },
   avisoError: { background: '#fdecea', color: '#b3261e' },
   avisoInfo: { background: '#e8f0fe', color: '#1a53a8' },
+  desplegable: {
+    border: '1px solid #e0e0e0',
+    borderRadius: 8,
+    marginTop: 8,
+    background: '#fafafa',
+  },
+  desplegableTitulo: {
+    cursor: 'pointer',
+    padding: '12px',
+    fontWeight: 600,
+    fontSize: 15,
+    listStyle: 'revert',
+  },
+  contador: {
+    fontWeight: 400,
+    fontSize: 13,
+    color: '#555',
+    background: '#fff',
+    border: '1px solid #ddd',
+    borderRadius: 10,
+    padding: '1px 8px',
+    marginLeft: 6,
+    whiteSpace: 'nowrap',
+  },
   lista: { paddingLeft: 20, lineHeight: 1.8 },
   tabla: { width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 14 },
   th: { textAlign: 'left', borderBottom: '2px solid #ddd', padding: '8px 6px', background: '#f6f8fa' },
