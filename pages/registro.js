@@ -15,6 +15,7 @@
  */
 import { useEffect, useState } from 'react';
 import EncabezadoGlovanze from '../components/EncabezadoGlovanze';
+import { validarHoraSalida } from '../lib/reglasNegocio';
 
 const BODEGAS = ['Bodega 222', 'Bodega 224', 'Bodega 230'];
 
@@ -78,12 +79,17 @@ export default function Registro() {
     return () => clearTimeout(temporizador);
   }, [cedula]);
 
+  // La hora de salida no puede ser anterior a la hora de entrada: se avisa
+  // aquí mismo y no se deja enviar (confirmado con la usuaria el 2026-11-08).
+  const revisionHora = asiste === 'Si' ? validarHoraSalida(horaSalidaReal) : { valida: true, motivo: null };
+
   const formularioCompleto =
     estadoPersona === 'valida' &&
     fecha &&
     bodega &&
     (asiste === 'Si' || asiste === 'No') &&
-    (asiste !== 'No' || motivo.trim());
+    (asiste !== 'No' || motivo.trim()) &&
+    revisionHora.valida;
 
   async function enviar(e) {
     e.preventDefault();
@@ -235,10 +241,14 @@ export default function Registro() {
               value={horaSalidaReal}
               onChange={(e) => setHoraSalidaReal(e.target.value)}
             />
-            <p style={estilos.ayuda}>
-              Déjalo vacío si vas a cumplir la jornada extra completa (hasta las 6:00 p.m. entre semana, o
-              hasta las 2:00 p.m. el sábado).
-            </p>
+            {!revisionHora.valida ? (
+              <div style={{ ...estilos.aviso, ...estilos.avisoError }}>⚠️ {revisionHora.motivo}</div>
+            ) : (
+              <p style={estilos.ayuda}>
+                Déjalo vacío si vas a cumplir la jornada extra completa (hasta las 6:00 p.m. entre semana, o
+                hasta las 2:00 p.m. el sábado).
+              </p>
+            )}
           </>
         )}
 

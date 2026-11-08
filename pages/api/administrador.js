@@ -5,14 +5,16 @@
  * los datos de Google Sheets y se valida la entrada.
  *
  * GET /api/administrador?fecha=YYYY-MM-DD
- *                        &area=TODAS|<cualquier área del maestro>
+ *                        &areas=PRODUCCION,LOGISTICA   (o TODAS, o vacío)
  *                        &bodega=TODAS|Bodega 222|Bodega 224|Bodega 230
  *
- * El área puede ser cualquiera de las que existan en el listado maestro
- * (Producción, Logística, Mantenimiento, Calidad...). La respuesta incluye
- * `areasDisponibles` para que la pantalla arme su selector sola.
+ * Desde el 2026-11-08 se pueden pedir VARIAS áreas a la vez, separadas por
+ * comas: la usuaria normalmente mira Producción y Logística juntas. Las
+ * áreas pueden ser cualquiera de las que existan en el listado maestro. La
+ * respuesta incluye `areasDisponibles` para que la pantalla arme su selector
+ * sola.
  */
-const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
+const { leerMaestro, leerRegistros, leerTurnoSabado } = require('../../lib/googleSheets');
 const { construirRespuesta, TODAS_LAS_BODEGAS } = require('../../lib/resumenAdministrador');
 const { BODEGAS_VALIDAS } = require('../../lib/reglasNegocio');
 
@@ -26,14 +28,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { fecha, area, bodega } = req.query;
+    const { fecha, areas, bodega } = req.query;
 
     if (!fechaValida(fecha)) {
       return res.status(400).json({ ok: false, error: 'Selecciona una fecha válida.' });
     }
 
-    // Si no viene área, equivale a "todo el personal del maestro".
-    const areaSeleccionada = (area || '').toUpperCase().trim() || 'TODAS';
+    // Si no vienen áreas, equivale a "todo el personal del maestro".
+    const areasSeleccionadas = (areas || '')
+      .toString()
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
 
     // El filtro de Bodega es opcional; si no viene, equivale a "todas".
     const bodegaSeleccionada = (bodega || '').trim() || TODAS_LAS_BODEGAS;
@@ -41,14 +47,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Selecciona una Bodega válida.' });
     }
 
-    const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
+    const [maestroCompleto, registros, cedulasTurnoSabado] = await Promise.all([
+      leerMaestro(),
+      leerRegistros(),
+      leerTurnoSabado(),
+    ]);
 
     const respuesta = construirRespuesta({
       fecha,
-      areaSeleccionada,
+      areasSeleccionadas,
       bodegaSeleccionada,
       maestroCompleto,
       registros,
+      cedulasTurnoSabado,
     });
 
     return res.status(200).json({ ok: true, ...respuesta });

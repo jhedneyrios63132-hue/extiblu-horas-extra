@@ -8,7 +8,7 @@
  * físicamente en cada Bodega, sin importar si la persona es de Producción
  * o Logística (confirmado con la usuaria el 2026-09-29).
  */
-const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
+const { leerMaestro, leerRegistros, leerTurnoSabado } = require('../../lib/googleSheets');
 const { construirResumen, TODAS_LAS_AREAS } = require('../../lib/resumenAdministrador');
 const { BODEGAS_VALIDAS } = require('../../lib/reglasNegocio');
 
@@ -31,13 +31,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Selecciona una Bodega válida.' });
     }
 
-    const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
+    const [maestroCompleto, registros, cedulasTurnoSabado] = await Promise.all([
+      leerMaestro(),
+      leerRegistros(),
+      leerTurnoSabado(),
+    ]);
     const registrosDelDia = registros.filter((r) => (r.Fecha || '').trim() === fecha.trim());
 
     // Se cruza con TODO el personal del maestro, sin filtrar por área: la
     // comida se entrega por Bodega y desde el 2026-11-03 entra todo el
     // personal, no solo Producción y Logística.
-    const resumen = construirResumen(TODAS_LAS_AREAS, maestroCompleto, registrosDelDia);
+    const resumen = construirResumen(TODAS_LAS_AREAS, maestroCompleto, registrosDelDia, {
+      fecha,
+      cedulasTurnoSabado,
+    });
     const deEstaBodega = resumen.programados.filter((p) => (p.bodega || '').trim() === bodega);
 
     const esperados = deEstaBodega

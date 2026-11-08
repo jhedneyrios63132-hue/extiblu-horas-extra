@@ -6,7 +6,7 @@
  *
  * GET /api/asistencia-del-dia?fecha=YYYY-MM-DD
  */
-const { leerMaestro, leerRegistros } = require('../../lib/googleSheets');
+const { leerMaestro, leerRegistros, leerTurnoSabado } = require('../../lib/googleSheets');
 const { construirAsistencia } = require('../../lib/asistencia');
 
 function fechaValida(fecha) {
@@ -24,8 +24,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Selecciona una fecha válida.' });
     }
 
-    const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
-    const asistencia = construirAsistencia(fecha, maestroCompleto, registros);
+    const [maestroCompleto, registros, cedulasTurnoSabado] = await Promise.all([
+      leerMaestro(),
+      leerRegistros(),
+      leerTurnoSabado(),
+    ]);
+    const asistencia = construirAsistencia(fecha, maestroCompleto, registros, cedulasTurnoSabado);
 
     // El maestro se envía reducido (solo lo necesario para buscar por nombre
     // o cédula a alguien que asistió sin estar programado).

@@ -53,6 +53,18 @@ personal de Google ni a nada más.
      encabezados exactos.
    - Las demás columnas, texto libre como ya las conoces.
 3. Comparte también esta hoja nueva con el mismo `client_email`, igualmente con permiso de **Editor**.
+4. **Pestaña del turno sabatino** (opcional, pero necesaria si tienes personal que trabaja los sábados
+   por turno fijo). En ese mismo archivo del registro diario, crea una pestaña llamada exactamente
+   `Turno_Sabado`. En la celda A1 escribe el encabezado `Cedula`, y debajo pega una cédula por fila.
+
+   Esa gente no manda registro porque ya sabe que le toca venir. Con esa lista, los sábados la
+   herramienta los cuenta sola como programados: salen a las 12:00, no llevan almuerzo, sus horas no
+   se cuentan como extra (es su jornada normal), y en la pantalla de Confirmar asistencia aparecen ya
+   contados sin tener que escanearlos. Si alguno de ellos sí se queda haciendo horas extra y registra
+   su salida, ese registro manda sobre el automático.
+
+   Si la pestaña no existe, la herramienta funciona igual que siempre: nadie se cuenta por turno.
+   Para cambiar quién está en el turno, basta con editar esa pestaña — no hay que tocar el código.
 
 ## Paso 3 — Configurar las variables de entorno
 

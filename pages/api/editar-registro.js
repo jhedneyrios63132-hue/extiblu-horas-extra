@@ -15,14 +15,10 @@
  * }
  */
 const { leerRegistros, normalizarCedula, actualizarRegistroAdmin } = require('../../lib/googleSheets');
-const { BODEGAS_VALIDAS } = require('../../lib/reglasNegocio');
+const { BODEGAS_VALIDAS, validarHoraSalida } = require('../../lib/reglasNegocio');
 
 function fechaValida(fecha) {
   return /^\d{4}-\d{2}-\d{2}$/.test((fecha || '').trim());
-}
-
-function horaValida(hora) {
-  return /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.test((hora || '').trim());
 }
 
 export default async function handler(req, res) {
@@ -46,8 +42,13 @@ export default async function handler(req, res) {
     if (asisteNormalizado === 'No' && !(motivo || '').trim()) {
       return res.status(400).json({ ok: false, error: 'Si no asiste, el motivo es obligatorio.' });
     }
-    if (asisteNormalizado === 'Si' && horaSalidaReal && !horaValida(horaSalidaReal)) {
-      return res.status(400).json({ ok: false, error: 'La hora de salida no es válida.' });
+    // La misma restricción que en Registro: ni el administrador puede guardar
+    // una hora de salida anterior a la hora de entrada (confirmado 2026-11-08).
+    if (asisteNormalizado === 'Si') {
+      const revision = validarHoraSalida(horaSalidaReal);
+      if (!revision.valida) {
+        return res.status(400).json({ ok: false, error: revision.motivo });
+      }
     }
     if (!(editadoPor || '').trim()) {
       return res.status(400).json({ ok: false, error: 'Escribe tu nombre antes de guardar el cambio.' });

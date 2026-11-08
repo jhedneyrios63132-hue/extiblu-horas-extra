@@ -16,6 +16,7 @@
 const {
   leerMaestro,
   leerRegistros,
+  leerTurnoSabado,
   normalizarCedula,
   actualizarAsistenciaRealVarias,
 } = require('../../lib/googleSheets');
@@ -42,8 +43,12 @@ export default async function handler(req, res) {
 
     const pedidas = new Set(cedulas.map(normalizarCedula));
 
-    const [maestroCompleto, registros] = await Promise.all([leerMaestro(), leerRegistros()]);
-    const asistencia = construirAsistencia(fecha, maestroCompleto, registros);
+    const [maestroCompleto, registros, cedulasTurnoSabado] = await Promise.all([
+      leerMaestro(),
+      leerRegistros(),
+      leerTurnoSabado(),
+    ]);
+    const asistencia = construirAsistencia(fecha, maestroCompleto, registros, cedulasTurnoSabado);
 
     // Solo se marcan las que siguen pendientes de verdad y además venían en
     // la lista que el administrador tenía en pantalla.

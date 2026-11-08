@@ -115,7 +115,7 @@ export default function ConfirmarAsistencia() {
       return;
     }
 
-    if (resultado.tipo === 'sin_programar') {
+    if (resultado.tipo === 'turno_sabado' || resultado.tipo === 'sin_programar') {
       // Hay que pedir la Bodega antes de crearle el registro.
       setSinProgramar(resultado.persona);
       setBodegaNueva(BODEGAS[0]);
@@ -378,6 +378,28 @@ export default function ConfirmarAsistencia() {
             )}
 
             {/* ---- Lo ya resuelto, plegado ---- */}
+            {datos.turnoSabado && datos.turnoSabado.length > 0 && (
+              <details style={estilos.desplegable}>
+                <summary style={estilos.desplegableTitulo}>
+                  Turno sabatino, ya contados <span style={estilos.contador}>{datos.turnoSabado.length}</span>
+                </summary>
+                <div style={{ padding: '0 16px 12px' }}>
+                  <p style={estilos.textoSecundario}>
+                    Trabajan los sábados por turno fijo, así que no mandan registro y se cuentan como
+                    asistidos sin escanearlos. Salen a las 12:00, por eso no llevan almuerzo. Si alguno se
+                    quedó haciendo horas extra, escanéalo e indícale la Bodega.
+                  </p>
+                  <ul style={estilos.lista}>
+                    {datos.turnoSabado.map((p) => (
+                      <li key={p.cedula}>
+                        ✅ {p.nombre} — {p.area}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )}
+
             {datos.confirmados.length > 0 && (
               <details style={estilos.desplegable}>
                 <summary style={estilos.desplegableTitulo}>
