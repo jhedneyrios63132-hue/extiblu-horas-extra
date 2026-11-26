@@ -1,8 +1,13 @@
 /**
- * Corrige un registro YA existente (Bodega, Asiste/Motivo, Hora de salida
- * real) — solo desde el panel de Administrador. La persona misma nunca
- * puede editar su registro desde /registro, solo un administrador desde
- * aquí.
+ * Corrige un registro YA existente (Fecha, Bodega, Asiste/Motivo, Hora de
+ * salida real) — solo desde el panel de Administrador. La persona misma
+ * nunca puede editar su registro desde /registro, solo un administrador
+ * desde aquí.
+ *
+ * La Fecha se puede corregir desde el 2026-11-26: la gente manda la
+ * programación del sábado el viernes y la guarda con la fecha del viernes.
+ * Al moverla se valida que la persona no tenga ya un registro en el día
+ * destino, para no crear un duplicado.
  *
  * Como la herramienta no tiene usuarios con login, quien edita debe
  * escribir su nombre (editadoPor); se guarda junto con la fecha/hora del
@@ -10,7 +15,9 @@
  *
  * POST /api/editar-registro
  * body: {
- *   cedula, fecha ("YYYY-MM-DD"), bodega, asiste ("Si"|"No"), motivo,
+ *   cedula, fecha ("YYYY-MM-DD", la fecha ACTUAL del registro),
+ *   fechaNueva ("YYYY-MM-DD", opcional: a dónde moverlo),
+ *   bodega, asiste ("Si"|"No"), motivo,
  *   horaSalidaReal ("HH:MM"|""), editadoPor
  * }
  */
@@ -27,10 +34,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { cedula, fecha, bodega, asiste, motivo, horaSalidaReal, editadoPor } = req.body || {};
+    const { cedula, fecha, fechaNueva, bodega, asiste, motivo, horaSalidaReal, editadoPor } = req.body || {};
 
     if (!fechaValida(fecha)) {
       return res.status(400).json({ ok: false, error: 'Fecha inválida.' });
+    }
+
+    // Si no mandan fecha nueva, el registro se queda donde está.
+    const fechaDestino = (fechaNueva || '').trim() || fecha.trim();
+    if (!fechaValida(fechaDestino)) {
+      return res.status(400).json({ ok: false, error: 'La fecha nueva no es válida.' });
     }
     if (!BODEGAS_VALIDAS.includes(bodega)) {
       return res.status(400).json({ ok: false, error: 'Selecciona una Bodega válida.' });
@@ -70,7 +83,22 @@ export default async function handler(req, res) {
       });
     }
 
+    // Si se está moviendo de día, esa persona no puede tener ya un registro
+    // en el día destino: sería un duplicado.
+    if (fechaDestino !== fecha.trim()) {
+      const yaExisteAlla = registros.some(
+        (r) => normalizarCedula(r.Cedula) === cedulaNormalizada && (r.Fecha || '').trim() === fechaDestino
+      );
+      if (yaExisteAlla) {
+        return res.status(409).json({
+          ok: false,
+          error: `Esa persona ya tiene un registro el ${fechaDestino}. Revisa ese día antes de mover este registro, o quedarían dos.`,
+        });
+      }
+    }
+
     await actualizarRegistroAdmin(coincidencias[0]._fila, {
+      fecha: fechaDestino,
       asiste: asisteNormalizado,
       motivo: asisteNormalizado === 'No' ? (motivo || '').trim() : '',
       bodega,
@@ -79,7 +107,7 @@ export default async function handler(req, res) {
       fechaEdicion: new Date().toISOString(),
     });
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, fecha: fechaDestino, seMovioDeDia: fechaDestino !== fecha.trim() });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
   }

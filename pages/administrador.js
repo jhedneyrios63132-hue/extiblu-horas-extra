@@ -250,6 +250,9 @@ export default function Administrador() {
   function abrirEdicion(p) {
     setEditando(p.cedula);
     setFormEdicion({
+      // Arranca en la fecha que se está viendo; si la cambian, el registro
+      // se mueve de día (pasa cuando mandan el sábado con fecha del viernes).
+      fechaNueva: fecha,
       bodega: p.bodega || '',
       asiste: p.asiste === 'No' ? 'No' : 'Si',
       motivo: p.motivo || '',
@@ -289,6 +292,7 @@ export default function Administrador() {
         body: JSON.stringify({
           cedula,
           fecha,
+          fechaNueva: formEdicion.fechaNueva,
           bodega: formEdicion.bodega,
           asiste: formEdicion.asiste,
           motivo: formEdicion.motivo,
@@ -480,6 +484,37 @@ export default function Administrador() {
               {Object.entries(datos.alimentacionPorBodega)
                 .map(([bodega, cantidad]) => `${bodega || 'Sin bodega'}: ${cantidad}`)
                 .join(' · ')}
+            </p>
+          )}
+
+          {/* Planeación: cuánta gente llega ese día, no solo cuántas comidas. */}
+          <h2 style={estilos.h2}>Personas que vienen</h2>
+          <div style={estilos.filaTarjetas}>
+            <TarjetaNumero
+              etiqueta="Vienen en total"
+              valor={datos.quienesVienen.total}
+              color="#1a73e8"
+            />
+            {datos.quienesVienen.porArea.map((a) => (
+              <TarjetaNumero key={a.area} etiqueta={a.area} valor={a.total} color="#5f6368" />
+            ))}
+          </div>
+          {datos.quienesVienen.total === 0 ? (
+            <p style={estilos.textoSecundario}>Nadie viene este día.</p>
+          ) : (
+            <div style={estilos.bloqueHorarios}>
+              {datos.quienesVienen.porArea.map((a) => (
+                <p key={a.area} style={estilos.lineaHorario}>
+                  <strong>{a.area}</strong>:{' '}
+                  {a.porHora.map((h) => `${h.total} sale${h.total > 1 ? 'n' : ''} ${h.hora}`).join(' · ')}
+                </p>
+              ))}
+            </div>
+          )}
+          {datos.quienesVienen.pendientesPorRevisar > 0 && (
+            <p style={estilos.textoSecundario}>
+              ⚠️ {datos.quienesVienen.pendientesPorRevisar} persona(s) con registros duplicados no se
+              cuentan aquí hasta que se resuelva cuál es el registro correcto.
             </p>
           )}
 
@@ -722,6 +757,22 @@ export default function Administrador() {
 
                                 <div style={estilos.filaFormEdicion}>
                                   <div>
+                                    <label style={estilos.etiqueta}>Fecha del registro</label>
+                                    <input
+                                      style={estilos.input}
+                                      type="date"
+                                      value={formEdicion.fechaNueva}
+                                      onChange={(e) =>
+                                        setFormEdicion({ ...formEdicion, fechaNueva: e.target.value })
+                                      }
+                                    />
+                                    {formEdicion.fechaNueva !== fecha && (
+                                      <p style={{ ...estilos.textoSecundario, maxWidth: 220 }}>
+                                        Se moverá al {formEdicion.fechaNueva} y dejará de verse en este día.
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
                                     <label style={estilos.etiqueta}>Bodega</label>
                                     <select
                                       style={estilos.input}
@@ -897,6 +948,8 @@ const estilos = {
     padding: '2px 8px',
     whiteSpace: 'nowrap',
   },
+  bloqueHorarios: { marginTop: 10 },
+  lineaHorario: { fontSize: 14, color: '#333', margin: '4px 0' },
   bloqueFaltantes: { marginTop: 16 },
   tituloBloqueFaltantes: { fontSize: 14, margin: '0 0 4px', color: '#333' },
   desplegable: {
